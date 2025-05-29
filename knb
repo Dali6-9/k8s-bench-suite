@@ -46,7 +46,7 @@ function cleanandexit {
 	for i in $RESOURCE_TO_CLEAN_BEFORE_EXIT
 	do
 		$DEBUG && debug "Deleting resource $i"
-		kubectl delete $NAMESPACEOPT $i --wait=false >/dev/null
+		kubectl delete --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT $i --wait=false >/dev/null
 	done
 
 	# Cleaning temp directory
@@ -70,7 +70,7 @@ function waitpod {
 	$DEBUG && debug "Waiting for pod $POD to be $PHASE until $TMAX"
 	while [ "$(now)" -lt "$TMAX" ]
 	do
-		CURRENTPHASE=$(kubectl get --request-timeout 2s $NAMESPACEOPT pod $POD -o jsonpath={.status.phase})
+		CURRENTPHASE=$(kubectl get --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 --request-timeout 2s $NAMESPACEOPT pod $POD -o jsonpath={.status.phase})
 		$DEBUG && debug "[$(now)/$TMAX] Pod $POD is in phase $CURRENTPHASE, waiting for $PHASE"
 		[ "$CURRENTPHASE" = "$PHASE" ] && return 0
 		sleep 1
@@ -122,7 +122,7 @@ function detect-pod-failure-reason-and-fatal {
 	POD_NAME=$1
 	shift
 
-	CURRENTPHASE=$(kubectl get --request-timeout 2s $NAMESPACEOPT pod $POD_NAME -o jsonpath={.status.phase})
+	CURRENTPHASE=$(kubectl get --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 --request-timeout 2s $NAMESPACEOPT pod $POD_NAME -o jsonpath={.status.phase})
 	$DEBUG && debug "Trying to detect pod failure for pod '$POD_NAME' in phase '$CURRENTPHASE'"
 	case $CURRENTPHASE in
 		"Pending")
@@ -130,7 +130,7 @@ function detect-pod-failure-reason-and-fatal {
 			;;
 		"Failed")
 			# Is it a window size problem in iperf ?
-			kubectl logs $NAMESPACEOPT $POD_NAME \
+			kubectl logs --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT $POD_NAME \
 				| grep "iperf3: error - unable to write to stream socket: Message too large" > /dev/null \
 				&& err "Iperf message was too large, you should try a lower value with flag '-sbs' (current value is : $SOCKET_BUFFER_SIZE)" && return 0
 
@@ -276,7 +276,7 @@ function run-client {
 	esac
 
 	info "Starting pod $POD_NAME on node $CLIENT_NODE"
-	cat <<-EOF | kubectl apply $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create pod $POD_NAME"
+	cat <<-EOF | kubectl apply --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create pod $POD_NAME"
 	apiVersion: v1
 	kind: Pod
 	metadata:
@@ -317,13 +317,13 @@ function run-client {
 
 	# Extracting data
 	$DEBUG && debug "Writing $POD_NAME logs to $DATADIR/$POD_NAME.log"
-	kubectl logs $NAMESPACEOPT $POD_NAME > $DATADIR/$POD_NAME.log
+	kubectl logs --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT $POD_NAME > $DATADIR/$POD_NAME.log
 	grep receiver $DATADIR/$POD_NAME.log | $BIN_AWK '{print $7}' > $DATADIR/$POD_NAME.bw
 	$DEBUG && debug "$POD_NAME Bandwidth = $(cat $DATADIR/$POD_NAME.bw)"
 
 	# Extracting monitoring
 	$DEBUG && debug "Writing $POD_NAME server metrics to $DATADIR/$POD_NAME-server.metrics"
-	kubectl exec -i $NAMESPACEOPT $MONITOR_SERVER_POD_NAME \
+	kubectl exec --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 -i $NAMESPACEOPT $MONITOR_SERVER_POD_NAME \
 		-- sh /stats.sh $STARTTIME $ENDTIME > $DATADIR/$POD_NAME-server.metrics
 
 	$DEBUG && debug "Computing $POD_NAME server metrics average to $DATADIR/$POD_NAME-server.avg"
@@ -335,7 +335,7 @@ function run-client {
 		}' > $DATADIR/$POD_NAME-server.avg
 
 	$DEBUG && debug "Writing $POD_NAME client metrics to $DATADIR/$POD_NAME-client.metrics"
-	kubectl exec -i $NAMESPACEOPT $MONITOR_CLIENT_POD_NAME \
+	kubectl exec --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 -i $NAMESPACEOPT $MONITOR_CLIENT_POD_NAME \
 		-- sh /stats.sh $STARTTIME $ENDTIME > $DATADIR/$POD_NAME-client.metrics
 
 	$DEBUG && debug "Computing $POD_NAME client metrics average to $DATADIR/$POD_NAME-client.avg"
@@ -350,7 +350,7 @@ function initialize-plotly-pod {
 	POD_NAME=$1
 
 	info "Starting plotly-orca pod $POD_NAME"
-	cat <<-EOF | kubectl apply $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create pod $POD_NAME"
+	cat <<-EOF | kubectl apply --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create pod $POD_NAME"
 	apiVersion: v1
 	kind: Pod
 	metadata:
@@ -381,7 +381,7 @@ function plot-data {
 	do
 		$DEBUG && debug "Rendering graph from $tmpl"
 		compute-json-result | jq -M -f $tmpl |\
-		kubectl exec -i $NAMESPACEOPT $PLOT_POD_NAME -- orca graph \
+		kubectl exec --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 -i $NAMESPACEOPT $PLOT_POD_NAME -- orca graph \
 		"$PLOT_GRAPH_ARGS" > ${PLOT_DIR}/"$(basename $tmpl .jq).png"
 	done
 }
@@ -1057,7 +1057,7 @@ function ctrl_c {
 
 #--- Server monitor --------------------------------
 info "Deploying server monitor on node $SERVER_NODE"
-cat <<EOF | kubectl apply $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create server monitor pod"
+cat <<EOF | kubectl apply --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create server monitor pod"
 apiVersion: v1
 kind: Pod
 metadata:
@@ -1080,7 +1080,7 @@ waitpod $MONITOR_SERVER_POD_NAME Running $POD_WAIT_TIMEOUT \
 
 #--- Client monitor --------------------------------
 info "Deploying client monitor on node $CLIENT_NODE"
-cat <<EOF | kubectl apply $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create client monitor pod"
+cat <<EOF | kubectl apply --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create client monitor pod"
 apiVersion: v1
 kind: Pod
 metadata:
@@ -1106,7 +1106,7 @@ waitpod $MONITOR_CLIENT_POD_NAME Running $POD_WAIT_TIMEOUT \
 #==============================================================================
 
 info "Deploying iperf server on node $SERVER_NODE"
-cat <<EOF | kubectl apply $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create server pod"
+cat <<EOF | kubectl apply --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT -f - >/dev/null|| fatal "Cannot create server pod"
 apiVersion: v1
 kind: Pod
 metadata:
@@ -1147,7 +1147,7 @@ info "Waiting for server to be running"
 kubectl wait $NAMESPACEOPT --for=condition=Ready pod/$SERVER_POD_NAME --timeout=${POD_WAIT_TIMEOUT}s >/dev/null \
 	|| detect-pod-failure-reason-and-fatal $SERVER_POD_NAME "Failed to start server pod"
 
-SERVER_IP=$(kubectl get $NAMESPACEOPT pod $SERVER_POD_NAME -o jsonpath={.status.podIP})
+SERVER_IP=$(kubectl get --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT pod $SERVER_POD_NAME -o jsonpath={.status.podIP})
 $DEBUG && debug "Server IP address is $SERVER_IP"
 
 #==============================================================================
@@ -1157,14 +1157,14 @@ $DEBUG && debug "Server IP address is $SERVER_IP"
 #--- CPU Detection ----------------------------------------
 
 info "Detecting CPU"
-DISCOVERED_CPU=$(kubectl exec -i  $NAMESPACEOPT $SERVER_POD_NAME -- grep "model name" /proc/cpuinfo | tail -n 1 | awk -F: '{print $2}')
+DISCOVERED_CPU=$(kubectl exec --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 -i  $NAMESPACEOPT $SERVER_POD_NAME -- grep "model name" /proc/cpuinfo | tail -n 1 | awk -F: '{print $2}')
 $DEBUG && debug "Cpu is $DISCOVERED_CPU"
 echo $DISCOVERED_CPU > $DATADIR/cpu
 
 #--- Kernel Detection -------------------------------------
 
 info "Detecting Kernel"
-DISCOVERED_KERNEL=$(kubectl exec -i  $NAMESPACEOPT $SERVER_POD_NAME -- uname -r)
+DISCOVERED_KERNEL=$(kubectl exec --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 -i  $NAMESPACEOPT $SERVER_POD_NAME -- uname -r)
 $DEBUG && debug "Kernel is $DISCOVERED_KERNEL"
 echo $DISCOVERED_KERNEL > $DATADIR/kernel
 
@@ -1179,7 +1179,7 @@ echo $DISCOVERED_K8S_VERSION > $DATADIR/k8s-version
 #--- MTU Detection ----------------------------------------
 
 info "Detecting CNI MTU"
-CNI_MTU=$(kubectl exec -i  $NAMESPACEOPT $SERVER_POD_NAME -- ip link \
+CNI_MTU=$(kubectl exec --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 -i  $NAMESPACEOPT $SERVER_POD_NAME -- ip link \
 	| grep "UP,LOWER_UP" | grep -v LOOPBACK | grep -oE "mtu [0-9]*"| $BIN_AWK '{print $2}')
 $DEBUG && debug "CNI MTU is $CNI_MTU"
 echo $CNI_MTU > $DATADIR/mtu
