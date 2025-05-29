@@ -299,7 +299,7 @@ function run-client {
 	RESOURCE_TO_CLEAN_BEFORE_EXIT="$RESOURCE_TO_CLEAN_BEFORE_EXIT pod/$POD_NAME"
 
 	# Waiting for Pod to be Running
-	kubectl wait $NAMESPACEOPT --for=condition=Ready pod/$POD_NAME \
+	kubectl wait --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT --for=condition=Ready pod/$POD_NAME \
 		--timeout=${POD_WAIT_TIMEOUT}s >/dev/null 2>/dev/null \
 		|| detect-pod-failure-reason-and-fatal $POD_NAME "Failed to start pod $POD_NAME until timeout"
 
@@ -367,7 +367,7 @@ function initialize-plotly-pod {
 	RESOURCE_TO_CLEAN_BEFORE_EXIT="$RESOURCE_TO_CLEAN_BEFORE_EXIT pod/$POD_NAME"
 
 	# Waiting for Pod to be Running
-	kubectl wait $NAMESPACEOPT --for=condition=Ready pod/$POD_NAME \
+	kubectl wait --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT --for=condition=Ready pod/$POD_NAME \
 		--timeout=$((POD_WAIT_TIMEOUT + 120))s >/dev/null 2>/dev/null \
 		|| detect-pod-failure-reason-and-fatal $POD_NAME "Failed to start pod $POD_NAME until timeout"
 }
@@ -1144,7 +1144,7 @@ EOF
 RESOURCE_TO_CLEAN_BEFORE_EXIT="$RESOURCE_TO_CLEAN_BEFORE_EXIT pod/$SERVER_POD_NAME svc/$SERVER_SERVICE_NAME"
 
 info "Waiting for server to be running"
-kubectl wait $NAMESPACEOPT --for=condition=Ready pod/$SERVER_POD_NAME --timeout=${POD_WAIT_TIMEOUT}s >/dev/null \
+kubectl wait --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT --for=condition=Ready pod/$SERVER_POD_NAME --timeout=${POD_WAIT_TIMEOUT}s >/dev/null \
 	|| detect-pod-failure-reason-and-fatal $SERVER_POD_NAME "Failed to start server pod"
 
 SERVER_IP=$(kubectl get --kubeconfig /etc/kubernetes/admin.conf --server https://10.1.2.51:6443 $NAMESPACEOPT pod $SERVER_POD_NAME -o jsonpath={.status.podIP})
